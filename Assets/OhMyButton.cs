@@ -11,6 +11,8 @@ public class OhMyButton : MonoBehaviour
     public void OnClick()
     {
         Debug.Log("Oh my button was clicked!");
+        ObjectCaptureBridge.StartObjectCapture();
+        Debug.Log("started ObjectCAPTURE");
     }
 
     // Update is called once per frame
