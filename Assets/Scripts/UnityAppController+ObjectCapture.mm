@@ -24,6 +24,7 @@ void StartObjectCaptureNative(void)
                 UIViewController *rootVC = UnityGetGLViewController();
                 
                 if (rootVC && captureVC) {
+                    captureVC.modalPresentationStyle = UIModalPresentationFullScreen;
                     [rootVC presentViewController:captureVC animated:YES completion:nil];
                 } else {
                     NSLog(@"[ObjectCapture] ERROR: Failed to create or present view controller");
