@@ -3,6 +3,7 @@
 #import "UnityAppController.h"
 #import "ObjectCaptureBridge.h"
 #import <objc/message.h>
+#import <RealityKit/RealityKit.h>
 
 // Simple coordinator class to manage the capture state
 @interface ObjectCaptureCoordinator : NSObject
@@ -34,38 +35,90 @@
     NSLog(@"[ObjectCapture] Coordinator startCapture called");
     self.isPresented = YES;
     
-    // Show a simple alert as placeholder for Object Capture UI
     dispatch_async(dispatch_get_main_queue(), ^{
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Object Capture"
-                                                                       message:@"Object Capture UI would appear here"
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        
-        UIAlertAction *successAction = [UIAlertAction actionWithTitle:@"Simulate Success"
-                                                                style:UIAlertActionStyleDefault
-                                                              handler:^(UIAlertAction * _Nonnull action) {
-            NSLog(@"[ObjectCapture] Simulated success");
-            self.isPresented = NO;
-        }];
-        
-        UIAlertAction *failureAction = [UIAlertAction actionWithTitle:@"Simulate Failure"
-                                                                style:UIAlertActionStyleCancel
-                                                              handler:^(UIAlertAction * _Nonnull action) {
-            NSLog(@"[ObjectCapture] Simulated failure");
-            self.isPresented = NO;
-        }];
-        
-        [alert addAction:successAction];
-        [alert addAction:failureAction];
-        
-        UIViewController *rootVC = UnityGetGLViewController();
-        if (rootVC) {
-            [rootVC presentViewController:alert animated:YES completion:^{
-                NSLog(@"[ObjectCapture] Alert presented");
-            }];
+        if (@available(iOS 17.0, *)) {
+            NSLog(@"[ObjectCapture] iOS 17+ detected, attempting to use Swift ObjectCaptureViewController");
+            
+            // Debug: List all registered classes containing "Capture"
+            int numClasses = objc_getClassList(NULL, 0);
+            Class *classes = (Class *)malloc(sizeof(Class) * numClasses);
+            objc_getClassList(classes, numClasses);
+            
+            NSLog(@"[ObjectCapture] Searching for Capture-related classes...");
+            for (int i = 0; i < numClasses; i++) {
+                const char *className = class_getName(classes[i]);
+                if (strstr(className, "Capture") != NULL) {
+                    NSLog(@"[ObjectCapture] Found class: %s", className);
+                }
+            }
+            free(classes);
+            
+            // Try different naming patterns
+            Class captureViewControllerClass = NSClassFromString(@"ObjectCaptureViewController");
+            if (!captureViewControllerClass) {
+                // Try with module prefix (Unity project name)
+                captureViewControllerClass = NSClassFromString(@"ObjectCaptureDemo.ObjectCaptureViewController");
+                NSLog(@"[ObjectCapture] Try with module prefix: %@", captureViewControllerClass);
+            }
+            if (!captureViewControllerClass) {
+                // Try with underscore prefix
+                captureViewControllerClass = NSClassFromString(@"_TtC17ObjectCaptureDemo26ObjectCaptureViewController");
+                NSLog(@"[ObjectCapture] Try with mangled name: %@", captureViewControllerClass);
+            }
+            
+            NSLog(@"[ObjectCapture] ObjectCaptureViewController class: %@", captureViewControllerClass);
+            
+            if (captureViewControllerClass) {
+                // Create instance of ObjectCaptureViewController
+                UIViewController *captureVC = [[captureViewControllerClass alloc] init];
+                NSLog(@"[ObjectCapture] Created ObjectCaptureViewController: %@", captureVC);
+                
+                if (captureVC) {
+                    UIViewController *rootVC = UnityGetGLViewController();
+                    if (rootVC) {
+                        [rootVC presentViewController:captureVC animated:YES completion:^{
+                            NSLog(@"[ObjectCapture] Swift ObjectCaptureViewController presented");
+                        }];
+                    } else {
+                        NSLog(@"[ObjectCapture] ERROR: No root view controller found");
+                        [self fallbackToAlert];
+                    }
+                } else {
+                    NSLog(@"[ObjectCapture] ERROR: Failed to create ObjectCaptureViewController instance");
+                    [self fallbackToAlert];
+                }
+            } else {
+                NSLog(@"[ObjectCapture] ERROR: ObjectCaptureViewController class not found");
+                NSLog(@"[ObjectCapture] Make sure Swift file is included in Xcode project");
+                [self fallbackToAlert];
+            }
         } else {
-            NSLog(@"[ObjectCapture] ERROR: No root view controller found");
+            NSLog(@"[ObjectCapture] iOS version < 17.0, using fallback");
+            [self fallbackToAlert];
         }
     });
+}
+
+- (void)fallbackToAlert {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Object Capture"
+                                                                   message:@"ObjectCaptureView requires iOS 17.0+"
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    
+    UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"OK"
+                                                       style:UIAlertActionStyleDefault
+                                                     handler:^(UIAlertAction * _Nonnull action) {
+        NSLog(@"[ObjectCapture] Fallback alert dismissed");
+        self.isPresented = NO;
+    }];
+    
+    [alert addAction:okAction];
+    
+    UIViewController *rootVC = UnityGetGLViewController();
+    if (rootVC) {
+        [rootVC presentViewController:alert animated:YES completion:^{
+            NSLog(@"[ObjectCapture] Fallback alert presented");
+        }];
+    }
 }
 
 @end
